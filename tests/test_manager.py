@@ -1,8 +1,9 @@
 from collections.abc import AsyncGenerator, Iterable
-from typing import override
+from typing import TypeAlias
 
 import httpx2
 import pytest
+from typing_extensions import override
 
 from llm_client import (
     AnthropicClient,
@@ -33,8 +34,8 @@ from tests.http_mocks import (
     openai_error,
 )
 
-type GenerateOutcome = ModelResponse | ErrorKind
-type StreamOutcome = list[str | ErrorKind]
+GenerateOutcome: TypeAlias = ModelResponse | ErrorKind
+StreamOutcome: TypeAlias = list[str | ErrorKind]
 
 
 def failure(kind: ErrorKind, provider: Provider = Provider.OPENAI) -> LLMError:

@@ -1,6 +1,6 @@
 import logging
 from collections.abc import Callable
-from typing import Any
+from typing import Any, TypeAlias
 from uuid import UUID
 
 import openai
@@ -27,7 +27,7 @@ REFUSAL_ERRORS = (ModelRefusalError, openai.ContentFilterFinishReasonError)
 TRUNCATION_REASONS = frozenset({"length", "max_tokens", "model_context_window_exceeded"})
 RETRY_TAG_PREFIX = "retry:attempt:"
 
-type ExtractionChain = Runnable[dict[str, str], ExtraccionTecnica]
+ExtractionChain: TypeAlias = Runnable[dict[str, str], ExtraccionTecnica]
 
 SYSTEM_PROMPT = """Sos un ingeniero de software senior que analiza textos técnicos: \
 descripciones de arquitectura, reportes de incidentes y logs de error.

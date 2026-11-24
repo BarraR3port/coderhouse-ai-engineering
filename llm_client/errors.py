@@ -1,4 +1,5 @@
 import ssl
+from typing import TypeAlias
 
 import anthropic
 import anyio
@@ -18,7 +19,7 @@ class LLMError(Exception):
         self.info = info
 
 
-type ProviderFailure = (
+ProviderFailure: TypeAlias = (
     openai.APIError | anthropic.APIError | httpx2.RequestError | ssl.SSLError | anyio.EndOfStream
 )
 

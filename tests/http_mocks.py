@@ -1,9 +1,10 @@
 import json
 from collections.abc import AsyncIterator, Iterable
+from typing import TypeAlias
 
 import httpx2
 
-type SseEvent = tuple[str | None, dict | str]
+SseEvent: TypeAlias = tuple[str | None, dict | str]
 
 SSE_HEADERS = {"content-type": "text/event-stream"}
 

@@ -3,7 +3,7 @@ import logging
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import aclosing
 from types import TracebackType
-from typing import Self
+from typing import Self, TypeAlias
 
 from llm_client.clients import AnthropicClient, BaseLLMClient, OpenAIClient
 from llm_client.errors import LLMError
@@ -12,8 +12,8 @@ from llm_client.settings import Settings
 
 logger = logging.getLogger(__name__)
 
-type ClientBuilder = Callable[[LLMConfig], BaseLLMClient]
-type Sleep = Callable[[float], Awaitable[None]]
+ClientBuilder: TypeAlias = Callable[[LLMConfig], BaseLLMClient]
+Sleep: TypeAlias = Callable[[float], Awaitable[None]]
 
 
 def build_client(config: LLMConfig) -> BaseLLMClient:

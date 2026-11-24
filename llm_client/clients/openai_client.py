@@ -1,9 +1,10 @@
 from collections.abc import AsyncGenerator
 from time import perf_counter
-from typing import Any, override
+from typing import Any
 
 import httpx2
 from openai import AsyncOpenAI
+from typing_extensions import override
 
 from llm_client.clients.base import BaseLLMClient, elapsed_ms
 from llm_client.errors import PROVIDER_FAILURES, LLMError, classify_sdk_error

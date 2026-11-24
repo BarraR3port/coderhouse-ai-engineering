@@ -4,8 +4,9 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from typing import TypeAlias
 
-type ScriptedResponse = tuple[int, dict]
+ScriptedResponse: TypeAlias = tuple[int, dict]
 
 
 @dataclass

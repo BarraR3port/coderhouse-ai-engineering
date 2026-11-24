@@ -1,7 +1,7 @@
 import random
 from collections.abc import Sequence
 from enum import StrEnum
-from typing import Annotated, Literal, Self
+from typing import Annotated, Literal, Self, TypeAlias
 
 from pydantic import (
     BaseModel,
@@ -26,7 +26,7 @@ class Role(StrEnum):
     ASSISTANT = "assistant"
 
 
-type Effort = Literal["low", "medium", "high", "xhigh", "max"]
+Effort: TypeAlias = Literal["low", "medium", "high", "xhigh", "max"]
 
 ModelName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 Temperature = Annotated[float, Field(ge=0.0, le=2.0)]
@@ -70,7 +70,7 @@ class ChatRequest(BaseModel):
         return cls(messages=list(prompt))
 
 
-type Prompt = str | Sequence[ChatMessage] | ChatRequest
+Prompt: TypeAlias = str | Sequence[ChatMessage] | ChatRequest
 
 
 class LLMConfig(BaseModel):

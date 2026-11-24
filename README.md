@@ -1,17 +1,19 @@
 # AI Engineering · Coderhouse
 
-Pre-entregas del curso **AI Engineering (Coderhouse)**, en Python 3.12.
+Pre-entregas del curso **AI Engineering (Coderhouse)**, en Python 3.11+.
 
 | Pre-entrega | Qué es | Código | Script de prueba |
 |---|---|---|---|
 | [1 · Cliente de LLM robusto y asíncrono](#pre-entrega-1-cliente-de-llm-robusto-y-asíncrono) | Una interfaz asíncrona común para OpenAI y Anthropic, con streaming y errores controlados | `llm_client/` | `main.py` |
 | [2 · Pipeline de procesamiento validado](#pre-entrega-2-pipeline-de-procesamiento-validado) | Una cadena LCEL que extrae tecnologías, criticidad y un resumen técnico de un texto, validados con Pydantic | `entity_pipeline/` | `run_pipeline.py` |
+| [3 · Sistema de recuperación semántica local (RAG)](#pre-entrega-3-sistema-de-recuperación-semántica-local-rag) | Un RAG que responde con la documentación de `data/`, cita sus fuentes y dice "No lo sé" si la respuesta no está | `rag/` | `ingest.py` y `run_rag.py` |
 
-La Pre-entrega 2 reutiliza la configuración (`Settings`) y la clasificación de errores de la 1.
+Cada pre-entrega reutiliza piezas de las anteriores: la configuración (`Settings`) y la
+clasificación de errores de la 1, y el armado del modelo y los logs de la 2.
 
 ## Instalación
 
-Requisitos: Python 3.12+ y [uv](https://docs.astral.sh/uv/).
+Requisitos: Python 3.11+ y [uv](https://docs.astral.sh/uv/).
 
 ```bash
 uv sync                      # crea el entorno e instala dependencias, incluidas las de desarrollo
@@ -21,7 +23,7 @@ cp .env.example .env         # completá al menos una API key
 Sin uv:
 
 ```bash
-python3.12 -m venv .venv && source .venv/bin/activate
+python3.11 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt        # solo para ejecutar los scripts
 pip install -r requirements-dev.txt    # además, pytest y ruff para correr los tests
 ```
@@ -40,6 +42,13 @@ pip install -r requirements-dev.txt    # además, pytest y ruff para correr los 
 | `LLM_TIMEOUT_SECONDS` | `60` | mayor a 0 y hasta 600 |
 | `LLM_MAX_ATTEMPTS` | `3` | entre 1 y 10 |
 | `LLM_BASE_DELAY_SECONDS` / `LLM_MAX_DELAY_SECONDS` | `1` / `20` | la base no puede superar al máximo |
+| `RAG_DATA_DIR` | `data` | carpeta con los `.md` / `.txt` a indexar |
+| `RAG_VECTORSTORE_DIR` | `vectorstore` | carpeta donde ChromaDB guarda la base (no se versiona) |
+| `RAG_EMBEDDING_CACHE_DIR` | `.cache/fastembed` | dónde queda el modelo de embeddings descargado (no se versiona) |
+| `RAG_EMBEDDING_MODEL` | `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` | modelo de embeddings local (fastembed) |
+| `RAG_CHUNK_SIZE` / `RAG_CHUNK_OVERLAP` | `120` / `20` | en tokens del modelo de embeddings, que lee hasta 128; el solapamiento tiene que ser menor que el tamaño |
+| `RAG_TOP_K` | `4` | entre 3 y 5 fragmentos por pregunta |
+| `RAG_MIN_RELEVANCE` | `0.45` | similitud coseno mínima, entre 0 y 1, para pasarle un fragmento al LLM |
 
 Un valor fuera de rango corta el arranque con un mensaje claro, antes de llamar a cualquier API.
 El `.env` se lee siempre desde la raíz del proyecto, sin importar desde qué carpeta se ejecute.
@@ -47,8 +56,20 @@ El `.env` se lee siempre desde la raíz del proyecto, sin importar desde qué ca
 ### Tests
 
 ```bash
-uv run pytest           # 128 tests, sin red ni API keys
+uv run pytest           # 164 tests, sin red ni API keys
 uv run ruff check .
+```
+
+Salida en Python 3.11, la versión del entorno de corrección (`.python-version` la fija):
+
+```text
+$ uv run python --version
+Python 3.11.15
+$ uv run pytest -q
+........................................................................ [ 43%]
+........................................................................ [ 87%]
+....................                                                     [100%]
+164 passed in 19.61s
 ```
 
 Con pip, después de `pip install -r requirements-dev.txt`: `pytest` y `ruff check .`.
@@ -75,6 +96,15 @@ entity_pipeline/            # Pre-entrega 2
 └── chain.py                # prompt + LLM con salida estructurada + validación + reintentos + logs
 main.py                     # script de la Pre-entrega 1: modo normal y streaming
 run_pipeline.py             # script de la Pre-entrega 2: extracción sobre textos de ejemplo
+rag/                        # Pre-entrega 3
+├── settings.py             # RagSettings: carpetas, modelo de embeddings, chunking, top_k (3 a 5)
+├── embeddings.py           # LocalEmbeddings: embeddings ONNX en la máquina, sin API key
+├── ingest.py               # carga, limpieza, chunking, persistencia en ChromaDB, control de embeddings
+├── schemas.py              # contrato Pydantic: SolicitudRAG, RespuestaDelModelo, RespuestaRAG, Fuente
+└── chain.py                # cadena LCEL asíncrona y get_rag_response
+data/                       # dataset de la Pre-entrega 3: 4 documentos .md
+ingest.py                   # script de la Pre-entrega 3: indexa data/ en ./vectorstore
+run_rag.py                  # script de la Pre-entrega 3: responde preguntas con RAG
 tests/
 ```
 
@@ -247,7 +277,7 @@ el reintento:
 ```
 INFO entity_pipeline.chain: Llamando a gpt-4o-mini
 WARNING entity_pipeline.chain: La salida no cumple el esquema: tecnologias: Value error, el texto tiene que nombrar al menos una tecnología
-INFO entity_pipeline.chain: Reintentando la extracción: intento 2
+INFO entity_pipeline.chain: Reintentando: intento 2
 INFO entity_pipeline.chain: Llamando a gpt-4o-mini
 INFO entity_pipeline.chain: Respuesta recibida: fin=stop, tokens=… entrada / … salida
 INFO entity_pipeline.chain: Salida validada: 2 tecnologías, criticidad alta
@@ -303,3 +333,183 @@ envía `temperature` (la API ya no la acepta) y se usa `ANTHROPIC_EFFORT`.
 **Prompt sin f-strings.** El texto del usuario entra por la variable `{texto}` del
 `ChatPromptTemplate` y las instrucciones por `{format_instructions}` (con `.partial()`), así
 LangChain gestiona las variables y el prompt se puede cambiar sin tocar la cadena.
+
+---
+
+## Pre-entrega 3: Sistema de recuperación semántica local (RAG)
+
+Un sistema RAG de punta a punta sobre la documentación interna de una plataforma ficticia,
+**Nimbus**: cuatro documentos de `data/` sobre despliegues, incidentes, la API pública y
+observabilidad. Recibe una pregunta, busca los fragmentos relevantes en una base vectorial
+**ChromaDB** persistida en `./vectorstore` y genera una respuesta que usa solo esa información,
+con sus fuentes. Si la respuesta no está en los documentos, responde **"No lo sé"**.
+
+```python
+from rag import get_rag_response
+
+respuesta = await get_rag_response(chain, "¿Se puede desplegar un viernes?")
+respuesta.respuesta  # texto basado solo en los documentos, o "No lo sé"
+respuesta.fuentes  # [Fuente(archivo="despliegues.md", seccion="Ventanas de despliegue", ...)]
+```
+
+### Cómo se ejecuta
+
+```bash
+uv run ingest.py                       # fragmenta data/ y lo guarda en ./vectorstore
+uv run run_rag.py                      # responde 3 preguntas de ejemplo (2 del tema, 1 fuera de tema)
+uv run run_rag.py "¿Cuánto duran los tokens de acceso?"
+uv run run_rag.py --solo-recuperar     # muestra qué fragmentos se recuperan, sin LLM ni API key
+uv run ingest.py --rebuild             # reindexa aunque nada haya cambiado
+```
+
+`run_rag.py` corre la ingesta antes de responder, así que con una base ya indexada no repite
+el trabajo. Para generar respuestas hace falta una API key de OpenAI o de Anthropic en el `.env`.
+Los embeddings no necesitan ninguna: el modelo corre en la máquina y se descarga una sola vez
+(unos 220 MB) en `.cache/fastembed`.
+
+### Cómo funciona
+
+| Paso | Dónde | Qué hace |
+|---|---|---|
+| 1. Carga | `rag/ingest.py` · `load_documents` | Lee los `.md` y `.txt` de `data/` y guarda el nombre del archivo como metadato |
+| 2. Limpieza | `clean_text` | Saca caracteres basura, espacios repetidos y saltos de línea de más |
+| 3. Chunking | `split_documents` | Corta primero por sección de Markdown (`#`, `##`), que queda como metadato. Si una sección supera `RAG_CHUNK_SIZE`, la parte con `RecursiveCharacterTextSplitter` (párrafo → línea → oración → palabra), con `RAG_CHUNK_OVERLAP` de solapamiento. Mide en **tokens del tokenizer del propio modelo de embeddings**, que trunca a 128: así ningún fragmento pierde su final al vectorizarse. Un `RAG_CHUNK_SIZE` mayor de lo que lee el modelo se rechaza |
+| 4. Persistencia | `ingest` | Guarda los fragmentos en ChromaDB (`./vectorstore`, distancia coseno) con IDs deterministas (`despliegues.md#004`). Antes de indexar compara una huella de los documentos y de la configuración: si no cambió nada, no reindexa. La huella se escribe recién cuando todos los fragmentos quedaron guardados; si la vectorización falla, la colección se borra y la próxima ingesta empieza de cero |
+| 5. Recuperación | `rag/chain.py` · `retrieve` | Convierte la pregunta en embedding con **el mismo modelo** que indexó y trae los `RAG_TOP_K` (3 a 5) fragmentos más parecidos. Descarta los que no llegan a `RAG_MIN_RELEVANCE` |
+| 6. Generación | `build_rag_chain` | `prompt | llm | PydanticOutputParser` con los fragmentos numerados como CONTEXTO. El prompt prohíbe usar conocimiento propio y obliga a responder "No lo sé" si el contexto no alcanza. Reintenta con backoff exponencial ante salidas inválidas y ante errores temporales del proveedor (429, 5xx, timeouts), con la misma política que la Pre-entrega 2 |
+| 7. Fuentes | `cite_sources` | El modelo devuelve qué fragmentos usó; las fuentes (archivo, sección, ID, relevancia) salen de los **metadatos** de esos fragmentos, no del texto del modelo |
+
+Toda la cadena es asíncrona: `get_rag_response` hace `await chain.ainvoke(...)`, la búsqueda usa
+`asimilarity_search_with_relevance_scores` y el modelo se llama por su vía async.
+
+### Salida de ejemplo
+
+Ingesta, dos veces seguidas:
+
+```text
+$ uv run ingest.py
+INFO rag.ingest: Indexados 25 fragmentos de 4 documentos en .../vectorstore
+Listo: 25 fragmentos de 4 documentos guardados en .../vectorstore
+$ uv run ingest.py
+INFO rag.ingest: La colección 'nimbus_docs' ya está al día (25 fragmentos): no se reindexa
+La base vectorial ya estaba al día (25 fragmentos): no se reindexó
+```
+
+Recuperación con los embeddings reales (`--solo-recuperar`): relevancia, si pasa el umbral, ID y
+sección de cada fragmento.
+
+```text
+=== ¿Qué pasa si durante el canario la tasa de errores 5xx supera el 1 %? ===
+0.495  usado=sí  despliegues.md#004  Criterios de rollback
+0.487  usado=sí  despliegues.md#003  Flujo de despliegue
+0.447  usado=no  api-publica.md#003  Límites de uso (rate limiting)
+0.437  usado=no  incidentes.md#000  Niveles de severidad
+
+=== ¿Cuál es la capital de Australia? ===
+0.058  usado=no  despliegues.md#001  Ventanas de despliegue
+0.039  usado=no  despliegues.md#000  Ventanas de despliegue
+0.032  usado=no  api-publica.md#001  Versionado
+0.024  usado=no  despliegues.md#003  Flujo de despliegue
+```
+
+Respuestas de `run_rag.py`. Esta corrida usó un servidor local que imita la API de OpenAI y
+devuelve textos fijos, así que **la redacción de las respuestas es simulada**. Todo lo demás es
+real: la recuperación, el prompt que se envía, el parseo con Pydantic y las fuentes.
+
+```json
+{
+  "pregunta": "¿Qué pasa si durante el canario la tasa de errores 5xx supera el 1 %?",
+  "respuesta": "Se hace rollback automático: si durante el canario la tasa de errores 5xx supera el 1 %, el despliegue vuelve a la versión anterior.",
+  "encontrada": true,
+  "fuentes": [
+    {
+      "archivo": "despliegues.md",
+      "seccion": "Criterios de rollback",
+      "fragmento_id": "despliegues.md#004",
+      "relevancia": 0.495
+    }
+  ]
+}
+{
+  "pregunta": "¿Cuál es la capital de Australia?",
+  "respuesta": "No lo sé",
+  "encontrada": false,
+  "fuentes": []
+}
+```
+
+```text
+INFO rag.chain: Recuperados 2 de 4 fragmentos con relevancia >= 0.45: despliegues.md#004 (0.495), despliegues.md#003 (0.487), api-publica.md#003 (0.447), incidentes.md#000 (0.437)
+INFO rag.chain: Recuperados 0 de 4 fragmentos con relevancia >= 0.45: despliegues.md#001 (0.058), ...
+INFO rag.chain: Ningún fragmento supera la relevancia mínima: se responde sin llamar al modelo
+INFO entity_pipeline.chain: Llamando a gpt-4o-mini
+```
+
+Con una API key en el `.env`, `uv run run_rag.py` hace la misma corrida contra el modelo real.
+
+### Preguntas fuera de contexto
+
+Hay dos barreras:
+
+1. **Antes del LLM.** Si ningún fragmento llega a `RAG_MIN_RELEVANCE`, la cadena responde
+   "No lo sé" sin llamar al modelo: no gasta tokens y no hay riesgo de que invente. El umbral
+   (0.45) se calibró con el modelo de embeddings real y 17 preguntas: las 10 del tema traen su
+   mejor fragmento con 0.48 a 0.69. Las 7 ajenas quedan debajo: "¿Cuál es la capital de
+   Australia?" (0.06), "¿Cómo configuro Kubernetes en Nimbus?" (0.22) y hasta "¿Cuál es el
+   sueldo de un ingeniero de guardia?" (0.44), que comparte palabras con la sección de guardias.
+2. **En el LLM.** Si pasa algún fragmento del tema pero no contesta lo que se pregunta, el prompt
+   obliga a responder exactamente "No lo sé". La cadena acepta también "No lo sé." con punto, lo
+   normaliza, deja `encontrada` en `false` y `fuentes` vacía.
+
+### Contrato Pydantic
+
+- **`SolicitudRAG`** valida la pregunta antes de buscar: sin espacios sobrantes, de 3 a 1000
+  caracteres.
+- **`RespuestaDelModelo`** es lo que parsea el `PydanticOutputParser`: `respuesta` y
+  `fragmentos_usados`. Una respuesta que no es "No lo sé" tiene que citar al menos un fragmento.
+  Si el JSON está mal formado, no cita o cita un fragmento que no existe, la cadena reintenta
+  (`.with_retry`, hasta `LLM_MAX_ATTEMPTS`).
+- **`RespuestaRAG`** es la salida final, con `pregunta`, `respuesta`, `encontrada` y `fuentes`
+  (`Fuente`: `archivo`, `seccion`, `fragmento_id`, `relevancia`). Su validador impide una
+  respuesta encontrada sin fuentes, o un "No lo sé" con fuentes.
+
+### Decisiones de diseño
+
+**Embeddings locales y el mismo modelo siempre.** Se usa
+`paraphrase-multilingual-MiniLM-L12-v2` (fastembed, ONNX), que entiende español, no cuesta
+tokens y permite probar la recuperación sin API key. El nombre del modelo queda en los metadatos
+de la colección. Si se consulta con otro modelo, `open_vectorstore` corta con
+`EmbeddingMismatchError` en lugar de devolver resultados al azar. Cambiar el modelo en el `.env`
+cambia la huella, así que la próxima ingesta reindexa sola.
+
+**Persistencia sin trabajo repetido.** La huella combina el contenido de cada documento, el
+modelo de embeddings y el tamaño y el solapamiento de los fragmentos. Si coincide con la
+guardada, no se vuelve a fragmentar ni a calcular embeddings. Si un documento cambia, la
+colección se reconstruye entera, así no quedan fragmentos viejos.
+
+**Las fuentes no dependen del modelo.** El LLM solo dice qué números de fragmento usó. El
+archivo, la sección y el ID salen de los metadatos que guardó la ingesta, así una fuente no
+puede ser inventada.
+
+**Credenciales.** Las API keys se leen del `.env` como `SecretStr`, que no se imprime ni en los
+logs ni en los errores. El `.env`, `./vectorstore` y `.cache/` están en `.gitignore`. Lo prueban
+`test_the_chain_runs_against_the_openai_api_without_leaking_the_key` (la key viaja solo en el
+encabezado `Authorization`: no aparece en los logs, en la respuesta ni en `repr(settings)`) y
+`tests/test_schemas.py`.
+
+### Pruebas
+
+`tests/test_rag_ingest.py`, `tests/test_rag_chain.py` y `tests/test_rag_schemas.py` (36 tests)
+corren sin red. Usan Chroma en una carpeta temporal, embeddings de palabras clave y un modelo
+falso que solo responde por la vía asíncrona. Cubren:
+
+- el chunking: secciones, IDs, límite de tamaño y solapamiento;
+- que una segunda ingesta no reindexa, y que sí reindexa si cambia un documento, con `--rebuild`
+  o después de una ingesta que falló;
+- el error con otro modelo de embeddings, y los límites de `top_k` (3 a 5);
+- las fuentes tomadas de los metadatos, y que el modelo recibe solo el contexto relevante;
+- "No lo sé" sin llamar al modelo cuando la pregunta está fuera de contexto;
+- que la búsqueda usa la API asíncrona del vector store;
+- los reintentos ante JSON inválido, citas inexistentes o un 429 del proveedor;
+- las validaciones de `SolicitudRAG` y `RespuestaRAG`;
+- una corrida contra la API de OpenAI simulada, con el request que sale.

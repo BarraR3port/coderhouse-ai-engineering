@@ -156,7 +156,7 @@ class PipelineLogger(BaseCallbackHandler):
         **kwargs: Any,
     ) -> None:
         if (attempt := retry_attempt(tags)) is not None:
-            logger.info("Reintentando la extracción: intento %d", attempt)
+            logger.info("Reintentando: intento %d", attempt)
 
     def on_chat_model_start(
         self,

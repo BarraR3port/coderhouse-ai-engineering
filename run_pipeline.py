@@ -54,15 +54,6 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def choose_provider(settings: Settings, requested: Provider | None) -> Provider | None:
-    if requested is not None:
-        return requested
-    configured = settings.configured_providers()
-    if settings.llm_provider in configured:
-        return settings.llm_provider
-    return configured[0] if configured else None
-
-
 async def report(chain: ExtractionChain, provider: Provider, name: str, texto: str) -> str:
     try:
         extraction = await extract(chain, texto)
@@ -89,7 +80,7 @@ async def main(argv: list[str]) -> int:
         print(f"Configuración inválida en el .env:\n{error}")
         return 2
 
-    provider = choose_provider(settings, args.provider)
+    provider = settings.preferred_provider(args.provider)
     if provider is None:
         print(
             "No hay API keys configuradas. Copiá .env.example a .env y completá "

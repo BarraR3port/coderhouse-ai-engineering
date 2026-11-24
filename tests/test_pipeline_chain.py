@@ -129,7 +129,7 @@ async def test_openai_retries_invalid_or_incomplete_output(
     assert result.tecnologias == ["FastAPI", "Kafka"]
     assert len(fake_api.requests) == 2
     assert logged in caplog.text
-    assert "Reintentando la extracción: intento 2" in caplog.text
+    assert "Reintentando: intento 2" in caplog.text
 
 
 async def test_openai_gives_up_after_the_configured_attempts(

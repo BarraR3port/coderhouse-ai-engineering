@@ -83,3 +83,19 @@ def test_env_file_is_read_from_the_project_root_whatever_the_working_directory()
 
     assert env_file.is_absolute()
     assert env_file == Path(__file__).resolve().parent.parent / ".env"
+
+
+@pytest.mark.parametrize(
+    ("keys", "configured_default", "expected"),
+    [
+        ({"openai_api_key": "sk", "anthropic_api_key": "sk"}, Provider.ANTHROPIC, "anthropic"),
+        ({"anthropic_api_key": "sk"}, Provider.OPENAI, "anthropic"),
+        ({}, Provider.OPENAI, None),
+    ],
+)
+def test_the_preferred_provider_is_the_configured_default(
+    keys: dict[str, str], configured_default: Provider, expected: str | None
+) -> None:
+    settings = Settings(_env_file=None, llm_provider=configured_default, **keys)
+
+    assert settings.preferred_provider() == expected

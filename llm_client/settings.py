@@ -58,6 +58,14 @@ class Settings(BaseSettings):
     def configured_providers(self) -> list[Provider]:
         return [provider for provider in Provider if self._api_key(provider) is not None]
 
+    def preferred_provider(self, requested: Provider | None = None) -> Provider | None:
+        if requested is not None:
+            return requested
+        configured = self.configured_providers()
+        if self.llm_provider in configured:
+            return self.llm_provider
+        return configured[0] if configured else None
+
     def config_for(self, provider: Provider) -> LLMConfig:
         api_key = self._api_key(provider)
         if api_key is None:

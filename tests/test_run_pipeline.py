@@ -5,7 +5,7 @@ import pytest
 
 import run_pipeline as cli
 from entity_pipeline import build_extraction_chain
-from llm_client import Provider, Settings
+from llm_client import Settings
 from tests.fake_api import FakeAPI
 from tests.http_mocks import openai_completion
 
@@ -134,19 +134,3 @@ async def test_exits_with_a_hint_when_no_key_is_configured(
 
     assert await cli.main([]) == 1
     assert ".env.example" in capsys.readouterr().out
-
-
-@pytest.mark.parametrize(
-    ("keys", "configured_default", "expected"),
-    [
-        ({"openai_api_key": "sk", "anthropic_api_key": "sk"}, Provider.ANTHROPIC, "anthropic"),
-        ({"anthropic_api_key": "sk"}, Provider.OPENAI, "anthropic"),
-        ({}, Provider.OPENAI, None),
-    ],
-)
-def test_choose_provider_prefers_the_configured_default(
-    keys: dict[str, str], configured_default: Provider, expected: str | None
-) -> None:
-    settings = Settings(_env_file=None, llm_provider=configured_default, **keys)
-
-    assert cli.choose_provider(settings, None) == expected

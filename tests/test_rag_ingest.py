@@ -184,6 +184,20 @@ def test_an_empty_collection_is_never_up_to_date(tmp_path: Path) -> None:
     assert ingest_corpus(settings).reindexed
 
 
+class UnloadableEmbeddings(KeywordEmbeddings):
+    @property
+    def max_tokens(self) -> int:
+        raise ValueError("Could not load model from any source")
+
+
+def test_a_model_that_cannot_load_is_reported_as_an_ingest_error(tmp_path: Path) -> None:
+    settings = rag_settings(tmp_path)
+    write_corpus(settings.data_dir)
+
+    with pytest.raises(IngestError, match="No se pudo cargar el modelo"):
+        ingest(settings, UnloadableEmbeddings())
+
+
 class ShortContextEmbeddings(KeywordEmbeddings):
     @property
     def max_tokens(self) -> int:

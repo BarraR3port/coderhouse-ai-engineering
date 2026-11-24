@@ -3,13 +3,23 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from langchain_core.documents import Document
 from langchain_core.exceptions import OutputParserException
 from langchain_core.language_models import BaseChatModel
 from pydantic import ValidationError
 
 from entity_pipeline import build_chat_model
 from llm_client import Provider, RetryPolicy, Settings
-from rag import NO_LO_SE, RagChain, RagSettings, build_rag_chain, get_rag_response, open_vectorstore
+from rag import (
+    NO_LO_SE,
+    Fragmento,
+    RagChain,
+    RagSettings,
+    build_rag_chain,
+    get_rag_response,
+    open_vectorstore,
+    relevant,
+)
 from rag.ingest import ingest
 from tests.fake_api import FakeAPI
 from tests.http_mocks import openai_completion
@@ -200,3 +210,10 @@ async def test_retrieval_uses_the_async_vector_store_api(
     await get_rag_response(chain, ROLLBACK_QUESTION)
 
     assert awaited == [ROLLBACK_QUESTION]
+
+
+def test_a_fragment_exactly_at_the_threshold_is_used() -> None:
+    at_threshold = Fragmento(Document(page_content="x"), 0.45)
+    below = Fragmento(Document(page_content="y"), 0.449)
+
+    assert relevant([at_threshold, below], 0.45) == [at_threshold]

@@ -59,9 +59,15 @@ def ingest(
         )
         return IngestReport(len(documents), existing.count(), reindexed=False)
 
-    if settings.chunk_size > embeddings.max_tokens:
+    try:
+        max_tokens = embeddings.max_tokens
+    except Exception as error:
         raise IngestError(
-            f"RAG_CHUNK_SIZE={settings.chunk_size} supera los {embeddings.max_tokens} tokens que "
+            f"No se pudo cargar el modelo de embeddings '{settings.embedding_model}': {error}"
+        ) from error
+    if settings.chunk_size > max_tokens:
+        raise IngestError(
+            f"RAG_CHUNK_SIZE={settings.chunk_size} supera los {max_tokens} tokens que "
             f"lee '{settings.embedding_model}': el resto de cada fragmento no se vectorizaría"
         )
     chunks = split_documents(
@@ -81,11 +87,8 @@ def ingest(
     )
     try:
         store.add_documents(chunks, ids=[chunk.id for chunk in chunks])
-    except BaseException as error:
-        client.delete_collection(settings.collection_name)
-        if isinstance(error, Exception):
-            raise IngestError(f"No se pudieron vectorizar los fragmentos: {error}") from error
-        raise
+    except Exception as error:
+        raise IngestError(f"No se pudieron vectorizar los fragmentos: {error}") from error
     collection = client.get_collection(settings.collection_name)
     # Chroma rechaza claves hnsw:* en modify(); la métrica ya quedó fija al crear la colección.
     metadata = {k: v for k, v in (collection.metadata or {}).items() if not k.startswith("hnsw:")}

@@ -56,7 +56,7 @@ El `.env` se lee siempre desde la raíz del proyecto, sin importar desde qué ca
 ### Tests
 
 ```bash
-uv run pytest           # 164 tests, sin red ni API keys
+uv run pytest           # 166 tests, sin red ni API keys
 uv run ruff check .
 ```
 
@@ -68,8 +68,8 @@ Python 3.11.15
 $ uv run pytest -q
 ........................................................................ [ 43%]
 ........................................................................ [ 87%]
-....................                                                     [100%]
-164 passed in 19.61s
+......................                                                   [100%]
+166 passed in 19.77s
 ```
 
 Con pip, después de `pip install -r requirements-dev.txt`: `pytest` y `ruff check .`.
@@ -499,7 +499,7 @@ encabezado `Authorization`: no aparece en los logs, en la respuesta ni en `repr(
 
 ### Pruebas
 
-`tests/test_rag_ingest.py`, `tests/test_rag_chain.py` y `tests/test_rag_schemas.py` (36 tests)
+`tests/test_rag_ingest.py`, `tests/test_rag_chain.py` y `tests/test_rag_schemas.py` (38 tests)
 corren sin red. Usan Chroma en una carpeta temporal, embeddings de palabras clave y un modelo
 falso que solo responde por la vía asíncrona. Cubren:
 

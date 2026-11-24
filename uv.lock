@@ -587,7 +587,7 @@ requires-dist = [
     { name = "anthropic", specifier = ">=2.6,<3" },
     { name = "anyio", specifier = ">=4.16,<5" },
     { name = "chromadb", specifier = ">=1,<2" },
-    { name = "fastembed", specifier = ">=0.7" },
+    { name = "fastembed", specifier = ">=0.7,<0.10" },
     { name = "httpx2", specifier = ">=2.16,<3" },
     { name = "langchain-anthropic", specifier = ">=1.7,<2" },
     { name = "langchain-chroma", specifier = ">=1,<2" },
